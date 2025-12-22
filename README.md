@@ -21,14 +21,14 @@
 ## 📥 Installation
 
 ### Download DMG
-1. Download the latest release from [Releases](https://github.com/datnt/myshot/releases)
+1. Download the latest release from [Releases](https://github.com/datntpro/myshot/releases)
 2. Open the DMG and drag MyShot to Applications
 3. Right-click and Open (first time only)
 4. Grant required permissions when prompted
 
 ### Build from Source
 ```bash
-git clone https://github.com/datnt/myshot.git
+git clone https://github.com/datntpro/myshot.git
 cd myshot
 ./build.sh
 ```
@@ -72,4 +72,4 @@ Inspired by [CleanShot X](https://cleanshot.com) - but free and open source!
 
 ---
 
-Made with ❤️ by [@datnt](https://github.com/datnt)
+Made with ❤️ by [@datntpro](https://github.com/datntpro)
