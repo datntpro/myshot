@@ -1,0 +1,25 @@
+# Logs and temp files
+*.log
+.DS_Store
+*.swp
+
+# Build artifacts
+.build/
+dist/
+*.dmg
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+
+# Dependencies
+.swiftpm/
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+landing/
+dist/
