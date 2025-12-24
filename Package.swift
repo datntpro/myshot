@@ -21,7 +21,13 @@ let package = Package(
                 // "HotKey",
                 // "KeyboardShortcuts"
             ],
-            path: "Sources"
+            path: "Sources",
+            exclude: ["CLI"]
+        ),
+        .executableTarget(
+            name: "myshot-cli",
+            dependencies: [],
+            path: "Sources/CLI"
         )
     ]
 )

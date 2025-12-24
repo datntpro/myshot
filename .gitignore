@@ -21,5 +21,4 @@ DerivedData/
 .idea/
 .vscode/
 *.sublime-*
-landing/
 dist/

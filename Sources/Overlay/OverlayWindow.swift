@@ -7,9 +7,18 @@ class OverlayWindow: NSWindow {
     private var autoHideWorkItem: DispatchWorkItem?
     
     init(image: NSImage) {
-        self.capturedImage = image
+        // Create a deep copy by converting to TIFF data and back
+        // This ensures completely fresh image with no cached references
+        if let tiffData = image.tiffRepresentation,
+           let copiedImage = NSImage(data: tiffData) {
+            self.capturedImage = copiedImage
+            print("📸 OverlayWindow: Created deep copy of image \(copiedImage.size)")
+        } else {
+            self.capturedImage = image.copy() as! NSImage
+            print("⚠️ OverlayWindow: Fallback copy of image \(image.size)")
+        }
         
-        let overlaySize = NSSize(width: 280, height: 180)
+        let overlaySize = NSSize(width: 340, height: 180)
         let screen = NSScreen.main ?? NSScreen.screens.first
         let origin: NSPoint
         
@@ -102,6 +111,8 @@ class OverlayWindow: NSWindow {
             copyToClipboard()
         case .save:
             saveToFile()
+        case .redact:
+            openRedactPreview()
         case .close:
             fadeOut()
         }
@@ -146,10 +157,79 @@ class OverlayWindow: NSWindow {
         formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
         return formatter.string(from: Date())
     }
+    
+    private func openRedactPreview() {
+        // Cancel auto-hide
+        autoHideWorkItem?.cancel()
+        autoHideWorkItem = nil
+        
+        print("🔍 Starting sensitive data detection...")
+        print("   Image size: \(capturedImage.size)")
+        
+        // Detect sensitive data
+        SensitiveDataDetector.shared.detectInImage(capturedImage) { [weak self] matches in
+            guard let self = self else { return }
+            
+            print("📊 Detection complete: \(matches.count) matches found")
+            for match in matches {
+                print("   - \(match.type.rawValue): \(match.maskedText)")
+            }
+            
+            if matches.isEmpty {
+                // No sensitive data found, show alert
+                DispatchQueue.main.async {
+                    let alert = NSAlert()
+                    alert.messageText = "No Sensitive Data Found"
+                    alert.informativeText = "No credit card numbers, API keys, or passwords were detected in this screenshot.\n\nTip: The text must be clearly visible and match known patterns."
+                    alert.alertStyle = .informational
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+                return
+            }
+            
+            // Show redact preview window
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                
+                let previewWindow = RedactPreviewWindow(
+                    image: self.capturedImage,
+                    matches: matches
+                ) { [weak self] redactedImage in
+                    guard let redactedImage = redactedImage else { return }
+                    
+                    // Copy redacted image to clipboard
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.writeObjects([redactedImage])
+                    
+                    print("✅ Redacted image copied to clipboard")
+                    
+                    // Save to history
+                    CaptureHistoryManager.shared.addCapture(image: redactedImage)
+                    
+                    // Show user feedback
+                    DispatchQueue.main.async {
+                        let alert = NSAlert()
+                        alert.messageText = "Redaction Complete! ✅"
+                        alert.informativeText = "The redacted image has been:\n\n• Copied to clipboard (⌘V to paste)\n• Saved to capture history"
+                        alert.alertStyle = .informational
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                    
+                    self?.fadeOut()
+                }
+                
+                self.orderOut(nil)
+                previewWindow.show()
+            }
+        }
+    }
 }
 
 enum OverlayAction {
-    case copy, save, close
+    case copy, save, redact, close
 }
 
 struct OverlayContentView: View {
@@ -177,12 +257,15 @@ struct OverlayContentView: View {
             .padding(.horizontal, 12)
             .padding(.top, 12)
             
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 OverlayButton(icon: "doc.on.clipboard", label: "Copy") {
                     onAction(.copy)
                 }
                 OverlayButton(icon: "square.and.arrow.down", label: "Save") {
                     onAction(.save)
+                }
+                OverlayButton(icon: "eye.slash", label: "Redact") {
+                    onAction(.redact)
                 }
             }
             .padding(.horizontal, 12)

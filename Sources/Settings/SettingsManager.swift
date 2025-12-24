@@ -21,6 +21,14 @@ class SettingsManager: ObservableObject {
     @AppStorage("videoQuality") var videoQuality: String = "high"
     @AppStorage("videoFPS") var videoFPS: Int = 60
     
+    // Auto-Redact Settings
+    @AppStorage("autoRedactEnabled") var autoRedactEnabled: Bool = false
+    @AppStorage("redactCreditCards") var redactCreditCards: Bool = true
+    @AppStorage("redactAPIKeys") var redactAPIKeys: Bool = true
+    @AppStorage("redactPasswords") var redactPasswords: Bool = true
+    @AppStorage("redactionStyle") var redactionStyle: String = "blur"
+    @AppStorage("showRedactPreview") var showRedactPreview: Bool = true
+    
     var videoBitrate: Int {
         switch videoQuality {
         case "low": return 5_000_000
@@ -74,10 +82,11 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettingsView().tabItem { Label("General", systemImage: "gear") }
+            AutoRedactSettingsView().tabItem { Label("Auto-Redact", systemImage: "eye.slash") }
             QualitySettingsView().tabItem { Label("Quality", systemImage: "sparkles") }
             WallpaperSettingsView().tabItem { Label("Wallpaper", systemImage: "photo.artframe") }
         }
-        .frame(width: 520, height: 480)
+        .frame(width: 520, height: 520)
     }
 }
 
@@ -253,6 +262,65 @@ struct WallpaperSettingsView: View {
             color1 = Color(hex: settings.wallpaperColorHex) ?? .purple
             color2 = Color(hex: settings.wallpaperColor2Hex) ?? .blue
         }
+    }
+}
+
+// MARK: - Auto-Redact Settings View
+struct AutoRedactSettingsView: View {
+    @ObservedObject private var settings = SettingsManager.shared
+    
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable Auto-Redact", isOn: $settings.autoRedactEnabled)
+                    .font(.headline)
+                
+                if settings.autoRedactEnabled {
+                    Text("Automatically detect and blur sensitive information in screenshots")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            if settings.autoRedactEnabled {
+                Section("Detection Types") {
+                    Toggle(isOn: $settings.redactCreditCards) {
+                        Label("Credit Card Numbers", systemImage: "creditcard")
+                    }
+                    Toggle(isOn: $settings.redactAPIKeys) {
+                        Label("API Keys & Tokens", systemImage: "key")
+                    }
+                    Toggle(isOn: $settings.redactPasswords) {
+                        Label("Passwords", systemImage: "lock")
+                    }
+                }
+                
+                Section("Redaction Style") {
+                    Picker("Style", selection: $settings.redactionStyle) {
+                        Label("Blur", systemImage: "drop.halffull").tag("blur")
+                        Label("Pixelate", systemImage: "square.grid.3x3").tag("pixelate")
+                        Label("Black Box", systemImage: "rectangle.fill").tag("blackBox")
+                    }
+                    .pickerStyle(.segmented)
+                }
+                
+                Section("Behavior") {
+                    Toggle("Show preview before redacting", isOn: $settings.showRedactPreview)
+                    
+                    if settings.showRedactPreview {
+                        Text("Review detected items and choose which to redact")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Automatically redact without preview (faster)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
     }
 }
 

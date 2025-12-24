@@ -7,6 +7,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyWindow: NSWindow?
     private var settingsWindow: NSWindow?
     private var onboardingWindow: NSWindow?
+    private var annotationWindow: AnnotationWindow?
     private var globalMonitor: Any?
     private var hasShownOnboarding = false
     
@@ -89,13 +90,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenu() {
         let menu = NSMenu()
         
-        // Quick capture actions at top
-        menu.addItem(NSMenuItem(title: "Capture Area", action: #selector(captureArea), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Capture Fullscreen", action: #selector(captureFullscreen), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Capture Window", action: #selector(captureWindow), keyEquivalent: ""))
+        // Quick capture actions with visible shortcuts
+        let areaItem = NSMenuItem(title: "Capture Area", action: #selector(captureArea), keyEquivalent: "4")
+        areaItem.keyEquivalentModifierMask = [.control, .shift]
+        menu.addItem(areaItem)
+        
+        let fullscreenItem = NSMenuItem(title: "Capture Fullscreen", action: #selector(captureFullscreen), keyEquivalent: "3")
+        fullscreenItem.keyEquivalentModifierMask = [.control, .shift]
+        menu.addItem(fullscreenItem)
+        
+        let windowItem = NSMenuItem(title: "Capture Window", action: #selector(captureWindow), keyEquivalent: "5")
+        windowItem.keyEquivalentModifierMask = [.control, .shift]
+        menu.addItem(windowItem)
+        
         menu.addItem(NSMenuItem.separator())
         
-        menu.addItem(NSMenuItem(title: "Capture Text (OCR)", action: #selector(captureOCR), keyEquivalent: ""))
+        let ocrItem = NSMenuItem(title: "Capture Text (OCR)", action: #selector(captureOCR), keyEquivalent: "6")
+        ocrItem.keyEquivalentModifierMask = [.control, .shift]
+        menu.addItem(ocrItem)
+        
         menu.addItem(NSMenuItem.separator())
         
         // Recording
@@ -107,10 +120,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(recordItem)
         
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Capture History", action: #selector(openHistory), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Capture History", action: #selector(openHistory), keyEquivalent: "h"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Permission Setup...", action: #selector(showPermissions), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit MyShot", action: #selector(quitApp), keyEquivalent: "q"))
         

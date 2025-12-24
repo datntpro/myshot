@@ -3,7 +3,7 @@ import Cocoa
 class ScreenCaptureManager: NSObject {
     static let shared = ScreenCaptureManager()
     
-    private var selectionWindow: SelectionWindow?
+    private var selectionWindowManager: SelectionWindowManager?
     private var completionHandler: ((NSImage?) -> Void)?
     
     private override init() {
@@ -17,55 +17,77 @@ class ScreenCaptureManager: NSObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            let window = SelectionWindow()
-            self.selectionWindow = window
+            let manager = SelectionWindowManager()
+            self.selectionWindowManager = manager
             
-            window.onSelectionComplete = { [weak self] rect in
+            manager.onSelectionComplete = { [weak self] rect in
                 self?.captureArea(rect: rect)
             }
-            window.onCancel = { [weak self] in
+            manager.onCancel = { [weak self] in
+                self?.selectionWindowManager?.closeAll()
+                self?.selectionWindowManager = nil
                 self?.completionHandler?(nil)
-                self?.selectionWindow = nil
             }
-            window.show()
+            manager.show()
         }
     }
     
     private func captureArea(rect: CGRect) {
-        selectionWindow?.orderOut(nil)
-        selectionWindow = nil
+        selectionWindowManager?.closeAll()
+        selectionWindowManager = nil
         
-        // Small delay to let the selection window disappear
+        // Small delay to let the selection windows disappear
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.captureRect(rect)
+            self?.captureRect(rect, screen: nil)
         }
     }
+
     
-    private func captureRect(_ rect: CGRect) {
-        guard let screen = NSScreen.main else {
-            completionHandler?(nil)
-            return
+    private func captureRect(_ rect: CGRect, screen: NSScreen?) {
+        // The rect is already in global screen coordinates (from SelectionWindow which spans all screens)
+        // CGWindowListCreateImage uses top-left origin, NSScreen uses bottom-left origin
+        
+        // Find the total screen space - use the union of all screens
+        let allScreensFrame = NSScreen.screens.reduce(NSRect.zero) { result, screen in
+            result.union(screen.frame)
         }
         
-        let screenHeight = screen.frame.height
-        let flippedRect = CGRect(
+        // The maxY of the union frame gives us the top edge in NSScreen coordinates
+        // which is 0 in CGWindowListCreateImage coordinates
+        let totalHeight = allScreensFrame.maxY - allScreensFrame.minY
+        let minY = allScreensFrame.minY
+        
+        // Convert from bottom-left to top-left coordinate system
+        // Account for negative Y origin (external monitors can be above primary)
+        let captureRect = CGRect(
             x: rect.origin.x,
-            y: screenHeight - rect.origin.y - rect.height,
+            y: totalHeight - (rect.origin.y - minY) - rect.height,
             width: rect.width,
             height: rect.height
         )
         
+        print("📸 Capture info:")
+        print("   All screens frame: \(allScreensFrame)")
+        print("   Total height: \(totalHeight), minY: \(minY)")
+        print("   Selection rect (bottom-left): \(rect)")
+        print("   Capture rect (top-left): \(captureRect)")
+        
         guard let cgImage = CGWindowListCreateImage(
-            flippedRect,
+            captureRect,
             .optionOnScreenOnly,
             kCGNullWindowID,
             [.bestResolution, .boundsIgnoreFraming]
         ) else {
+            print("❌ CGWindowListCreateImage failed")
             completionHandler?(nil)
             return
         }
         
-        var image = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        // Use point size, not pixel size (for Retina displays)
+        let pointSize = NSSize(width: rect.width, height: rect.height)
+        var image = NSImage(cgImage: cgImage, size: pointSize)
+        
+        print("   Captured image: \(image.size)")
         
         // Apply custom wallpaper if enabled
         if SettingsManager.shared.useCustomWallpaper {
@@ -73,6 +95,14 @@ class ScreenCaptureManager: NSObject {
         }
         
         completionHandler?(image)
+    }
+    
+    private func findScreen(containing rect: CGRect) -> NSScreen? {
+        // Find the screen that contains the center point of the rect
+        let centerPoint = CGPoint(x: rect.midX, y: rect.midY)
+        return NSScreen.screens.first { screen in
+            screen.frame.contains(centerPoint)
+        }
     }
     
     private func applyWallpaper(to image: NSImage) -> NSImage {
@@ -202,19 +232,78 @@ class ScreenCaptureManager: NSObject {
     }
 }
 
-// MARK: - Selection Window
+// MARK: - Selection Window Manager
+class SelectionWindowManager {
+    var onSelectionComplete: ((CGRect) -> Void)?
+    var onCancel: (() -> Void)?
+    
+    private var windows: [SelectionWindow] = []
+    private var selectionState = SelectionState()
+    
+    init() {
+        // Create a selection window for each screen
+        for screen in NSScreen.screens {
+            let window = SelectionWindow(screen: screen, sharedState: selectionState)
+            
+            window.onSelectionComplete = { [weak self] rect in
+                // Convert local rect to global coordinates
+                let globalRect = CGRect(
+                    x: screen.frame.origin.x + rect.origin.x,
+                    y: screen.frame.origin.y + rect.origin.y,
+                    width: rect.width,
+                    height: rect.height
+                )
+                self?.onSelectionComplete?(globalRect)
+            }
+            window.onCancel = { [weak self] in
+                self?.onCancel?()
+            }
+            
+            windows.append(window)
+        }
+        
+        print("🖥️ Created \(windows.count) selection windows for multi-monitor")
+    }
+    
+    func show() {
+        for window in windows {
+            window.makeKeyAndOrderFront(nil)
+        }
+        // Make first window key
+        windows.first?.makeFirstResponder(windows.first?.selectionView)
+    }
+    
+    func closeAll() {
+        for window in windows {
+            window.orderOut(nil)
+        }
+        windows.removeAll()
+    }
+}
+
+// Shared selection state across all windows
+class SelectionState: ObservableObject {
+    @Published var startPoint: NSPoint?
+    @Published var currentPoint: NSPoint?
+    @Published var isSelecting = false
+    @Published var originScreen: NSScreen?
+}
+
+// MARK: - Selection Window (per screen)
 class SelectionWindow: NSWindow {
     var onSelectionComplete: ((CGRect) -> Void)?
     var onCancel: (() -> Void)?
     
-    private var selectionView: SelectionView?
+    private(set) var selectionView: SelectionView?
+    private let targetScreen: NSScreen
+    private let sharedState: SelectionState
     
-    init() {
-        let screen = NSScreen.main ?? NSScreen.screens.first
-        let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 800, height: 600)
+    init(screen: NSScreen, sharedState: SelectionState) {
+        self.targetScreen = screen
+        self.sharedState = sharedState
         
         super.init(
-            contentRect: frame,
+            contentRect: screen.frame,
             styleMask: .borderless,
             backing: .buffered,
             defer: false
@@ -228,7 +317,7 @@ class SelectionWindow: NSWindow {
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         self.isReleasedWhenClosed = false
         
-        let view = SelectionView(frame: frame)
+        let view = SelectionView(frame: NSRect(origin: .zero, size: screen.frame.size), screen: screen, sharedState: sharedState)
         self.selectionView = view
         
         view.onSelectionComplete = { [weak self] rect in
@@ -240,13 +329,6 @@ class SelectionWindow: NSWindow {
         
         self.contentView = view
     }
-    
-    func show() {
-        self.makeKeyAndOrderFront(nil)
-        if let view = selectionView {
-            self.makeFirstResponder(view)
-        }
-    }
 }
 
 // MARK: - Selection View
@@ -257,6 +339,13 @@ class SelectionView: NSView {
     private var startPoint: NSPoint?
     private var currentPoint: NSPoint?
     private var isSelecting = false
+    private var screen: NSScreen?
+    
+    // Simple init for per-screen usage
+    convenience init(frame: NSRect, screen: NSScreen, sharedState: SelectionState) {
+        self.init(frame: frame)
+        self.screen = screen
+    }
     
     override var acceptsFirstResponder: Bool { true }
     

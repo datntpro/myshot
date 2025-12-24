@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # MyShot Build Script
-# Builds the app for release and creates a DMG
+# Builds the app for release and creates a beautiful DMG
 
 set -e
 
@@ -64,10 +64,54 @@ cp -r "$APP_BUNDLE" "$DMG_TEMP/"
 # Create symbolic link to Applications
 ln -s /Applications "$DMG_TEMP/Applications"
 
-# Create DMG
-hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" -ov -format UDZO "$OUTPUT_DIR/$DMG_NAME"
+# Create temporary read-write DMG  
+TEMP_DMG="$OUTPUT_DIR/temp_$DMG_NAME"
+rm -f "$TEMP_DMG"
+hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_TEMP" -ov -format UDRW "$TEMP_DMG"
+
+# Mount and configure
+echo "🎨 Configuring DMG appearance..."
+DEVICE=$(hdiutil attach -readwrite -noverify "$TEMP_DMG" | egrep '^/dev/' | sed 1q | awk '{print $1}')
+MOUNT_POINT="/Volumes/$APP_NAME"
+
+sleep 2
+
+# Set Finder view options using osascript
+osascript <<EOF
+tell application "Finder"
+    tell disk "$APP_NAME"
+        open
+        set current view of container window to icon view
+        set toolbar visible of container window to false
+        set statusbar visible of container window to false
+        set bounds of container window to {200, 120, 800, 520}
+        
+        set theViewOptions to the icon view options of container window
+        set arrangement of theViewOptions to not arranged
+        set icon size of theViewOptions to 100
+        
+        -- Position icons nicely
+        set position of item "$APP_NAME.app" of container window to {150, 200}
+        set position of item "Applications" of container window to {450, 200}
+        
+        update without registering applications
+        close
+    end tell
+end tell
+EOF
+
+# Wait for Finder
+sleep 2
+
+# Unmount
+sync
+hdiutil detach "$DEVICE" -quiet 2>/dev/null || hdiutil detach "$DEVICE" -force
+
+# Convert to compressed read-only DMG
+hdiutil convert "$TEMP_DMG" -format UDZO -imagekey zlib-level=9 -o "$OUTPUT_DIR/$DMG_NAME"
 
 # Cleanup
+rm -f "$TEMP_DMG"
 rm -rf "$DMG_TEMP"
 
 echo ""

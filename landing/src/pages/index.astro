@@ -1,0 +1,745 @@
+---
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyShot - Free Screenshot Tool for macOS</title>
+    <meta name="description" content="A free, open-source screenshot and screen recording tool for macOS. Capture, annotate, and share with ease.">
+    <link rel="icon" type="image/png" href="/icon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --bg-card-hover: #1a1a25;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.2);
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --border: rgba(255, 255, 255, 0.08);
+            --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
+            --gradient-2: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Background effects */
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-glow::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(99, 102, 241, 0.15) 0%, transparent 50%);
+            animation: float 15s ease-in-out infinite;
+        }
+
+        .bg-glow::after {
+            content: '';
+            position: absolute;
+            bottom: -50%;
+            right: -30%;
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle at center, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite reverse;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(50px, 30px); }
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1rem 2rem;
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .logo img {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+        }
+
+        /* Hero */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 8rem 2rem 4rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .badge-dot {
+            width: 8px;
+            height: 8px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 2.5rem;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Features */
+        section {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-1);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .feature-tag {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent-light);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* CLI Section */
+        .cli-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 3rem;
+            margin-top: 4rem;
+        }
+
+        .cli-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            align-items: center;
+        }
+
+        @media (max-width: 768px) {
+            .cli-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .cli-terminal {
+            background: #0d0d12;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            display: flex;
+            gap: 6px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f57; }
+        .terminal-dot.yellow { background: #febc2e; }
+        .terminal-dot.green { background: #28c840; }
+
+        .terminal-body {
+            padding: 1.5rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+        }
+
+        .terminal-body .prompt {
+            color: #22c55e;
+        }
+
+        .terminal-body .command {
+            color: var(--text-primary);
+        }
+
+        .terminal-body .comment {
+            color: var(--text-muted);
+        }
+
+        /* Shortcuts */
+        .shortcuts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .shortcut-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .shortcut-keys {
+            display: flex;
+            gap: 4px;
+        }
+
+        .key {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem 0.6rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .shortcut-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Download */
+        .download-section {
+            text-align: center;
+            padding: 6rem 2rem;
+            background: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.05) 100%);
+            border-radius: 32px;
+            margin: 2rem;
+        }
+
+        .download-section h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .download-section p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .download-info {
+            margin-top: 2rem;
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .download-info span {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 3rem 2rem;
+            text-align: center;
+            border-top: 1px solid var(--border);
+        }
+
+        footer p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--accent-light);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            nav {
+                padding: 1rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .hero {
+                padding: 6rem 1.5rem 3rem;
+            }
+            
+            .hero-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .cli-section {
+                padding: 2rem 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    
+    <nav>
+        <div class="logo">
+            <img src="/icon.png" alt="MyShot">
+            <span>MyShot</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#cli">CLI</a>
+            <a href="#shortcuts">Shortcuts</a>
+            <a href="https://github.com/datntpro/myshot" target="_blank">GitHub</a>
+            <a href="#download" class="btn btn-primary">Download</a>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero">
+            <div class="badge">
+                <span class="badge-dot"></span>
+                Free & Open Source
+            </div>
+            <h1>Screenshot tool that<br>doesn't cost $29</h1>
+            <p class="hero-subtitle">
+                A powerful, free alternative to CleanShot X. Capture screenshots, record screen, 
+                auto-redact sensitive data, and extract text with OCR – all in one beautiful app.
+            </p>
+            <div class="hero-buttons">
+                <a href="#download" class="btn btn-primary">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Download for macOS
+                </a>
+                <a href="https://github.com/datntpro/myshot" target="_blank" class="btn btn-secondary">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                    View on GitHub
+                </a>
+            </div>
+        </section>
+
+        <section id="features">
+            <div class="section-header">
+                <h2>Everything you need</h2>
+                <p>All the features of premium screenshot tools, completely free and open source.</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📸</div>
+                    <h3>Screenshot Capture</h3>
+                    <p>Capture fullscreen, selected area, or specific window with pixel-perfect precision.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎬</div>
+                    <h3>Screen Recording</h3>
+                    <p>Record your screen as video or GIF. Perfect for demos, tutorials, and bug reports.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <span class="feature-tag">New</span>
+                    <div class="feature-icon">🔒</div>
+                    <h3>Auto-Redact</h3>
+                    <p>Automatically detect and blur sensitive data like credit cards, API keys, and passwords before sharing.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📝</div>
+                    <h3>OCR Text Extraction</h3>
+                    <p>Extract text from any screenshot instantly using Apple's Vision framework. Copy directly to clipboard.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Annotation Tools</h3>
+                    <p>Add text, arrows, shapes, blur sensitive areas, and crop – all in a beautiful editor.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🖼️</div>
+                    <h3>Custom Wallpaper</h3>
+                    <p>Add beautiful gradient backgrounds to your screenshots for that professional look.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📋</div>
+                    <h3>Quick Access Overlay</h3>
+                    <p>Copy, save, annotate, or pin your screenshot with one click right after capture.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📂</div>
+                    <h3>Capture History</h3>
+                    <p>Browse and manage all your past captures in one organized place.</p>
+                </div>
+                
+                <div class="feature-card">
+                    <span class="feature-tag">New</span>
+                    <div class="feature-icon">⌨️</div>
+                    <h3>CLI Tool</h3>
+                    <p>Use MyShot from Terminal for automation and scripting workflows.</p>
+                </div>
+            </div>
+
+            <!-- CLI Section -->
+            <div id="cli" class="cli-section">
+                <div class="cli-content">
+                    <div>
+                        <span class="feature-tag">Developer Friendly</span>
+                        <h2>Powerful CLI</h2>
+                        <p style="color: var(--text-secondary); margin: 1rem 0 1.5rem;">
+                            Integrate MyShot into your workflow with our command-line interface. 
+                            Perfect for automation, CI/CD pipelines, and scripting.
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <span class="key">capture</span>
+                            <span class="key">record</span>
+                            <span class="key">ocr</span>
+                            <span class="key">annotate</span>
+                        </div>
+                    </div>
+                    <div class="cli-terminal">
+                        <div class="terminal-header">
+                            <div class="terminal-dot red"></div>
+                            <div class="terminal-dot yellow"></div>
+                            <div class="terminal-dot green"></div>
+                        </div>
+                        <div class="terminal-body">
+                            <div><span class="comment"># Take an area screenshot</span></div>
+                            <div><span class="prompt">$</span> <span class="command">myshot capture --area</span></div>
+                            <br>
+                            <div><span class="comment"># Capture with auto-redact</span></div>
+                            <div><span class="prompt">$</span> <span class="command">myshot capture --area --redact</span></div>
+                            <br>
+                            <div><span class="comment"># Extract text from image</span></div>
+                            <div><span class="prompt">$</span> <span class="command">myshot ocr ~/screenshot.png</span></div>
+                            <br>
+                            <div><span class="comment"># Record screen as GIF</span></div>
+                            <div><span class="prompt">$</span> <span class="command">myshot record --format gif</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="shortcuts">
+            <div class="section-header">
+                <h2>Keyboard Shortcuts</h2>
+                <p>Lightning-fast capture with global hotkeys that work from anywhere.</p>
+            </div>
+            
+            <div class="shortcuts-grid">
+                <div class="shortcut-card">
+                    <div class="shortcut-keys">
+                        <span class="key">⌃</span>
+                        <span class="key">⇧</span>
+                        <span class="key">3</span>
+                    </div>
+                    <span class="shortcut-label">Fullscreen</span>
+                </div>
+                <div class="shortcut-card">
+                    <div class="shortcut-keys">
+                        <span class="key">⌃</span>
+                        <span class="key">⇧</span>
+                        <span class="key">4</span>
+                    </div>
+                    <span class="shortcut-label">Area Select</span>
+                </div>
+                <div class="shortcut-card">
+                    <div class="shortcut-keys">
+                        <span class="key">⌃</span>
+                        <span class="key">⇧</span>
+                        <span class="key">5</span>
+                    </div>
+                    <span class="shortcut-label">Window</span>
+                </div>
+                <div class="shortcut-card">
+                    <div class="shortcut-keys">
+                        <span class="key">⌃</span>
+                        <span class="key">⇧</span>
+                        <span class="key">6</span>
+                    </div>
+                    <span class="shortcut-label">OCR Capture</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="download" class="download-section">
+            <h2>Ready to capture?</h2>
+            <p>Download MyShot for free and start taking beautiful screenshots.</p>
+            <div class="download-buttons">
+                <a href="https://github.com/datntpro/myshot/releases/latest" class="btn btn-primary">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.1 22C7.79 22.05 6.8 20.68 5.96 19.47C4.25 17 2.94 12.45 4.7 9.39C5.57 7.87 7.13 6.91 8.82 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/>
+                    </svg>
+                    Download for macOS
+                </a>
+                <a href="https://github.com/datntpro/myshot" target="_blank" class="btn btn-secondary">
+                    View Source Code
+                </a>
+            </div>
+            <div class="download-info">
+                <span>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    macOS 13+
+                </span>
+                <span>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    100% Free
+                </span>
+                <span>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Open Source
+                </span>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>
+            Made with ❤️ by <a href="https://github.com/datntpro" target="_blank">@datntpro</a> • 
+            <a href="https://github.com/datntpro/myshot" target="_blank">GitHub</a> • 
+            MIT License
+        </p>
+    </footer>
+</body>
+</html>
